@@ -242,6 +242,6 @@ if __name__ == "__main__":
     losses = neural_network.train(train, label)
     plt.plot(losses)
     plt.show()
-    # pickle.dump(neural_network, open("NN_11_5_20_20_2.pkl", "wb"))
-    # neural_network.test(test)
+    pickle.dump(neural_network, open("NN_11_5_20_20_2.pkl", "wb"))
+    neural_network.test(test)
 
