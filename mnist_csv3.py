@@ -3,7 +3,6 @@ import gzip
 import numpy as np
 
 
-
 def load_data():
     f = gzip.open('mnist.pkl.gz', 'rb')
     training_data, validation_data, test_data = pickle.load(f, encoding="latin1")
@@ -36,6 +35,7 @@ validation_img = np.int32(validation_data[0] * 256)
 validation_label = np.int32(validation_data[1])
 test_img = np.int32(test_data[0] * 256)
 test_label = np.int32(test_data[1])
+
 
 tr_img = np.concatenate((training_img, validation_img))
 tr_label = np.concatenate((training_label, validation_label))
