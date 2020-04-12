@@ -73,7 +73,7 @@ def softmax(vector):
     return vector_exponent / np.sum(vector_exponent)
 
 
-def cross_entropy_loss(output, y):
+def cross_entropy_loss(p, y):
     """
        p is the output from fully connected layer (num_examples x num_classes)
        y is labels (num_examples x 1)
@@ -81,7 +81,6 @@ def cross_entropy_loss(output, y):
         It can be computed as y.argmax(axis=1) from one-hot encoded vectors of labels if required.
     """
     m = y.shape[0]
-    p = softmax(output)
     log_likelihood = -np.log(p[range(m), y.astype(int)])
     loss = np.sum(log_likelihood) / m
     return loss
@@ -133,7 +132,7 @@ class NeuralNet:
         z2 = np.dot(a1, self.weights2) + self.bias2
         a2 = sigmoid(z2)
         y = np.dot(a2, self.output_weights) + self.bias_output
-        output = y
+        output = softmax(y)
         self.cache_layers(x, a1, a2)
         return output
 
@@ -176,11 +175,12 @@ class NeuralNet:
         return loss_list
 
     def test(self, test_data):
-        predictions = np.array(test_data.shape[0])
+        predictions = np.array([], dtype=int)
         x = np.array_split(test_data, int(test_data.shape[0] / self.batch_size), axis=0)
         for i in range(int(test_data.shape[0] / self.batch_size)):
-            predictions.append(self.forward(x[i]))
-        predictions = np.array(predictions)
+            y = self.forward(x[i])
+            y_index = np.argmax(y, axis=1)
+            np.concatenate((predictions, y_index), axis=None)
         write_output(predictions)
         return
 
@@ -199,7 +199,7 @@ def read_input(arguments):
 
 
 def write_output(predictions):
-    np.savetxt("test_predictions.csv", predictions, delimiter=",")
+    np.savetxt("test_predictions.csv", predictions.astype(int), delimiter=",")
     return
 
 
@@ -239,9 +239,9 @@ if __name__ == "__main__":
     train, label, test = load_dataset()
     neural_network = NeuralNet(layer1=64, layer2=32, learning_rate=0.01, batch_size=20, epoch=50, features=784,
                                classes=10)
-    losses = neural_network.train(train, label)
-    plt.plot(losses)
-    plt.show()
-    pickle.dump(neural_network, open("NN_11_5_20_20_2.pkl", "wb"))
+    # losses = neural_network.train(train, label)
+    # plt.plot(losses)
+    # plt.show()
+    # pickle.dump(neural_network, open("NN_11_5_20_20_2.pkl", "wb"))
     neural_network.test(test)
 
