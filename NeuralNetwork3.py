@@ -15,9 +15,9 @@ def sigmoid_derivative(z):
     return np.multiply(z, (1 - z))
 
 
-def cross_entropy_derivative(predict, y_hot):
+def cross_entropy_derivative(predict, y_hot, dl2):
     num_samples = predict.shape[0]
-    temp = predict - y_hot
+    temp = predict - y_hot + dl2
     return temp/num_samples
 
 
@@ -27,7 +27,7 @@ def softmax(vector):
     return vector_exponent / np.sum(vector_exponent, axis=1, keepdims=True)
 
 
-def cross_entropy_loss(predict, actual):
+def cross_entropy_loss(predict, actual, l2):
     """
        p is the output from fully connected layer (num_examples x num_classes)
        y is labels (num_examples x 1)
@@ -37,7 +37,8 @@ def cross_entropy_loss(predict, actual):
     num_samples = actual.shape[0]
     log_likelihood = -np.log(predict[np.arange(num_samples), actual.argmax(axis=1)])
     loss = np.sum(log_likelihood) / num_samples
-    return loss
+    loss_r = loss + l2
+    return loss_r
 
 def linear_back(dz, cache):
     a, w, b = cache
@@ -67,6 +68,10 @@ class NeuralNet:
         self.bias_output = np.random.randn(self.classes,)
         self.cache = {}
 
+    def regularization(self):
+        return np.sum(self.weights1**2) + np.sum(self.weights2**2) + np.sum(self.output_weights**2)
+
+
     def cache_layers(self, x, a1, a2):
         self.cache[1] = (x, self.weights1, self.bias1)
         self.cache[2] = (a1, self.weights2, self.bias2)
@@ -86,7 +91,8 @@ class NeuralNet:
         layer3_params = self.cache[3]
         layer2_params = self.cache[2]
         layer1_params = self.cache[1]
-        gradient = cross_entropy_derivative(output, y)
+        dl2 = np.sum(self.weights1*2) + np.sum(self.weights2*2) + np.sum(self.output_weights*2)
+        gradient = cross_entropy_derivative(output, y, dl2)
         da2, dw3, db3 = linear_back(gradient, layer3_params)
         dz2 = da2*sigmoid_derivative(layer3_params[0])
         da1, dw2, db2 = linear_back(dz2, layer2_params)
@@ -105,25 +111,30 @@ class NeuralNet:
         return
 
     def train(self, train_image_mat, train_label_mat):
-        num_batches = int(train_image_mat.shape[0] / self.batch_size)
+        validation_size = int(train_image_mat.shape[0]*0.2)
+        validation_samples = train_image_mat[:validation_size, :]
+        validation_samples_labels = np.argmax(train_label_mat[:validation_size, :], axis=1)
+        
+        train_samples = train_image_mat[validation_size:, :]
+        train_labels = train_label_mat[validation_size:, :]
 
-        x = np.array_split(train_image_mat, num_batches, axis=0)
-        y = np.array_split(train_label_mat, num_batches, axis=0)
-        test_samples = x[-1]
-        test_samples_labels = np.argmax(y[-1], axis=1)
+        num_batches = int(train_samples.shape[0] / self.batch_size)
+
+        x = np.array_split(train_samples, num_batches, axis=0)
+        y = np.array_split(train_labels, num_batches, axis=0)
+
         loss_list = []
         for j in range(self.epoch):
             output = 0
-            for i in range(num_batches-1):
+            for i in range(num_batches):
                 output = self.forward(x[i])
-                loss_list.append(cross_entropy_loss(output, y[i]))
+                l2 = self.regularization()
+                loss_list.append(cross_entropy_loss(output, y[i], l2))
                 self.backward(output, y[i])
             print("epoch number = {}, {}".format(j, loss_list[-1]))
-            temp_predictions = self.test(test_samples)
-            test_accuracy = self.accuracy(temp_predictions, test_samples_labels)
-            print(test_accuracy)
-            if test_accuracy > 90:
-                break
+            temp_predictions = self.test(validation_samples)
+            validation_accuracy = self.accuracy(temp_predictions, validation_samples_labels)
+            print(validation_accuracy)
         predictions = self.test(train_image_mat)
         return loss_list, predictions
 
@@ -148,7 +159,6 @@ def read_input(arguments):
     test_image_matrix = np.genfromtxt(arguments.test_image, delimiter=',')
     train_label_matrix = np.genfromtxt(arguments.train_label, delimiter=',')
     test_label_matrix = np.genfromtxt('test_label.csv', delimiter=',')
-    # train_image_matrix, test_image_matrix = vectorize_input(train_image_matrix, test_image_matrix)
     return train_image_matrix, train_label_matrix, test_image_matrix, test_label_matrix
 
 
@@ -156,6 +166,14 @@ def write_output(predictions):
     np.savetxt("test_predictions.csv", predictions.astype(int), fmt="%d")
     return
 
+def shuffle_data(x,y):
+  data = list(zip(x,y))
+  np.random.shuffle(data)
+  x_shuf, y_shuf = list(zip(*data))
+  return np.array(x_shuf), np.array(y_shuf)
+
+def normalize(x):
+    return np.divide(x, 255)
 
 def split_dataset():
     parser = argparse.ArgumentParser()
@@ -171,32 +189,33 @@ def split_dataset():
     pickle.dump((train[0], label[0]), open("dev_cut_train.pkl", "wb"))
 
 
-def load_dataset(small_dataset, return_test_label=False):
+def load_dataset(small_dataset=False, return_test_label=False):
+    
+    test_image_raw = np.genfromtxt('test_image.csv', delimiter=',')
+    test_image = normalize(test_image_raw)
 
-    test_image_matrix = np.genfromtxt('test_image.csv', delimiter=',')
     if small_dataset:
-        train_data, label_data = pickle.load(open("dev_cut_train.pkl", "rb"))
+        train_image_raw, train_label_raw = pickle.load(open("dev_cut_train.pkl", "rb"))
     else:
-        train_image_matrix = np.genfromtxt('train_image.csv', delimiter=',')
-        train_label_matrix = np.genfromtxt('train_label.csv', delimiter=',')
-        train_data = train_image_matrix
-        label_data = train_label_matrix
-
+        train_image_raw = np.genfromtxt('train_image.csv', delimiter=',')
+        train_label_raw = np.genfromtxt('train_label.csv', delimiter=',')
+    train_data, label_data = shuffle_data(normalize(train_image_raw), train_label_raw)
+    
     if return_test_label:
-        test_label_matrix = np.genfromtxt('test_label.csv', delimiter=',')
-        return train_data, label_data, test_image_matrix,  test_label_matrix
-    return np.divide(train_data,255), label_data, np.divide(test_image_matrix,255)  # , test_label_matrix
+        test_label_raw = np.genfromtxt('test_label.csv', delimiter=',')
+        return train_data, label_data, test_image,  test_label_raw
+    return train_data, label_data, test_image, 0
 
 
 # TODO: split dataset into train and test. After each epoch test on the test dataset if accuract > 90% stop training and start testing. 
 if __name__ == "__main__":
     # split_dataset()
     # exit()
-    small_dataset = True
+    small_dataset = False
     return_test_label = True
-
+    np.random.seed(416)
     train, label, test, test_label = load_dataset(small_dataset, return_test_label)
-    neural_network = NeuralNet(layer1=128, layer2=64, learning_rate=0.1, batch_size=10, epoch=1000, features=784,
+    neural_network = NeuralNet(layer1=128, layer2=56, learning_rate=0.15, batch_size=5, epoch=10, features=784,
                                classes=10)
     label_hot = np.zeros((label.size, int(label.max()+1)))
     label_hot[np.arange(label.size), label.astype(int)] = 1
