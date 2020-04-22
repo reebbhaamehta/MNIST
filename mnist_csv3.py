@@ -43,6 +43,11 @@ tr_label = np.concatenate((training_label, validation_label))
 tr_label = np.reshape(tr_label, (60000, 1))
 test_label = np.reshape(test_label, (10000, 1))
 
+total_dataset = np.concatenate((tr_img, test_img))
+total_labels = np.concatenate((tr_label, test_label))
+np.savetxt('total_dataset.csv', total_dataset, delimiter=',', fmt='%d')
+np.savetxt('total_labels.csv', total_labels, delimiter=',', fmt='%d')
+
 np.savetxt('train_label.csv', tr_label, delimiter=',', fmt='%d')
 np.savetxt('test_label.csv', test_label, delimiter=',', fmt='%d')
 np.savetxt('train_image.csv', tr_img, delimiter=',', fmt='%d')
